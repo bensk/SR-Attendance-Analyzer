@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Attendance Ledger — Creo College Prep</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --paper: #f5f1e8;
+    --paper-dark: #ebe5d4;
+    --ink: #1a1611;
+    --ink-soft: #4a4035;
+    --ink-faint: #8a7e6d;
+    --rule: #d4c9b0;
+    --accent: #a3271e;
+    --accent-soft: #c9554a;
+    --slate: #3d5466;
+    --slate-soft: #6d8499;
+    --warn: #b8730f;
+    --good: #3a5a3a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 32px 28px 80px; }
+
+  .masthead { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+  .kicker { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  h1.title { font-family: Georgia, "Times New Roman", serif; font-size: 44px; font-weight: 700; margin: 6px 0 0; line-height: 1; letter-spacing: -0.02em; }
+  .dek { font-family: Georgia, serif; font-style: italic; color: var(--ink-soft); font-size: 15px; margin-top: 8px; }
+  .meta-right { font-size: 11px; color: var(--ink-faint); letter-spacing: 0.05em; text-align: right; }
+  .meta-right em { font-family: Georgia, serif; }
+
+  .upload-zone { border: 2px dashed var(--rule); padding: 40px 24px; text-align: center; margin: 32px 0; background: rgba(255,255,255,0.3); cursor: pointer; transition: all 0.2s; }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: rgba(163, 39, 30, 0.04); }
+  .upload-zone h3 { font-family: Georgia, serif; font-size: 20px; margin: 0 0 8px; color: var(--ink); }
+  .upload-zone p { color: var(--ink-soft); margin: 0; font-size: 14px; }
+  .upload-zone .file-icon { font-size: 36px; color: var(--ink-faint); margin-bottom: 12px; }
+  input[type="file"] { display: none; }
+  .upload-btn { display: inline-block; margin-top: 16px; padding: 10px 24px; background: var(--ink); color: var(--paper); border: none; cursor: pointer; font-family: inherit; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
+  .upload-btn:hover { background: var(--accent); }
+  .upload-btn.secondary { background: transparent; color: var(--ink); border: 1px solid var(--ink); margin-left: 8px; }
+  .upload-btn.secondary:hover { background: var(--ink); color: var(--paper); }
+
+  .status { padding: 12px 16px; margin: 16px 0; font-size: 13px; }
+  .status.error { background: rgba(163, 39, 30, 0.08); border-left: 3px solid var(--accent); color: var(--accent); }
+  .status.info { background: rgba(61, 84, 102, 0.08); border-left: 3px solid var(--slate); color: var(--slate); }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 24px; margin-bottom: 36px; }
+  .stat { border-left: 3px solid var(--ink); padding-left: 14px; padding-top: 4px; padding-bottom: 4px; }
+  .stat.accent { border-left-color: var(--accent); }
+  .stat.slate { border-left-color: var(--slate); }
+  .stat.good { border-left-color: var(--good); }
+  .stat-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; }
+  .stat-value { font-size: 32px; font-family: Georgia, "Times New Roman", serif; font-weight: 700; color: var(--ink); line-height: 1.1; margin-top: 2px; }
+  .stat-sub { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+
+  .section-title { margin: 32px 0 18px; }
+  .section-title .section-kicker { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 4px; }
+  h2.section-h { font-family: Georgia, serif; font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.01em; color: var(--ink); }
+  .section-dek { font-family: Georgia, serif; font-size: 14px; font-style: italic; color: var(--ink-soft); margin-top: 6px; line-height: 1.5; max-width: 720px; }
+
+  .insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 36px; }
+  .insight { border-top: 2px solid var(--slate); padding: 14px 16px 16px; background: var(--paper); }
+  .insight.high { border-top-color: var(--accent); }
+  .insight.med { border-top-color: var(--warn); }
+  .insight-emoji { font-size: 22px; margin-bottom: 6px; }
+  .insight-head { font-family: Georgia, serif; font-weight: 700; font-size: 16px; line-height: 1.3; color: var(--ink); margin-bottom: 6px; }
+  .insight-body { font-size: 13px; line-height: 1.5; color: var(--ink-soft); }
+
+  .tabs { display: flex; gap: 0; margin-bottom: 24px; flex-wrap: wrap; }
+  .tab { background: transparent; color: var(--ink); border: 1px solid var(--ink); padding: 8px 16px; font-family: inherit; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .tab:not(:first-child) { border-left: none; }
+  .tab.active { background: var(--ink); color: var(--paper); }
+  .tab:hover:not(.active) { background: rgba(26, 22, 17, 0.05); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .chart-wrap { position: relative; margin: 20px 0; }
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 32px; }
+  @media (max-width: 820px) { .chart-row { grid-template-columns: 1fr; } }
+  .chart-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; margin-bottom: 8px; }
+
+  .table-wrap { overflow-x: auto; margin-top: 16px; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data th { padding: 10px 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; border-bottom: 2px solid var(--ink); font-weight: 700; }
+  table.data td { padding: 10px 8px; border-bottom: 1px solid var(--rule); }
+  table.data tr:hover td { background: rgba(26, 22, 17, 0.02); }
+  td.serif { font-family: Georgia, serif; font-weight: 600; }
+  td.tabular { font-variant-numeric: tabular-nums; }
+  td.accent { color: var(--accent); font-weight: 700; }
+  td.slate { color: var(--slate); }
+  .faint { color: var(--ink-faint); font-size: 11px; }
+
+  .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+  .filter-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; }
+  .filter-btn { background: transparent; color: var(--ink); border: 1px solid var(--ink); padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .filter-btn.active { background: var(--ink); color: var(--paper); }
+
+  .watchlist { display: flex; flex-direction: column; }
+  .watch-row { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; padding: 8px 4px; border-bottom: 1px solid var(--rule); font-size: 13px; }
+  .watch-num { color: var(--ink-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .watch-name { font-weight: 600; font-family: Georgia, serif; }
+  .watch-sub { font-size: 11px; color: var(--ink-faint); }
+  .watch-stat { text-align: right; font-variant-numeric: tabular-nums; }
+  .watch-stat .big { font-weight: 700; }
+  .watch-stat .big.accent { color: var(--accent); }
+  .watch-stat .big.slate { color: var(--slate); }
+  .watch-stat .small { font-size: 10px; color: var(--ink-faint); }
+
+  .col-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 820px) { .col-2 { grid-template-columns: 1fr; } }
+
+  .note { font-family: Georgia, serif; font-style: italic; font-size: 13px; color: var(--ink-soft); margin-top: 16px; line-height: 1.6; max-width: 760px; }
+
+  footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--rule); font-size: 11px; color: var(--ink-faint); font-family: Georgia, serif; font-style: italic; line-height: 1.6; }
+  footer strong { font-style: normal; }
+
+  .hidden { display: none !important; }
+
+  @media print {
+    .upload-zone, .tabs, .filter-bar, .upload-btn, .actions-bar { display: none !important; }
+    .panel { display: block !important; page-break-inside: avoid; }
+    body { background: white; }
+    .print-divider { display: block; page-break-before: always; }
+  }
+  .print-divider { display: none; }
+
+  .actions-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <div class="kicker">Creo College Prep · Attendance Review</div>
+      <h1 class="title">The Attendance Ledger</h1>
+      <div class="dek" id="dek">Upload a Daily Attendance Export CSV to generate the report.</div>
+    </div>
+    <div class="meta-right">
+      SY 2025–26<br/>
+      <em>compiled from Daily Attendance Export</em>
+    </div>
+  </header>
+
+  <div id="uploadZone" class="upload-zone">
+    <div class="file-icon">📄</div>
+    <h3>Drop your Daily_Attendance_Export.csv here</h3>
+    <p>Or click to browse. All processing happens in your browser — no data leaves your device.</p>
+    <input type="file" id="fileInput" accept=".csv" />
+    <div>
+      <button class="upload-btn" id="chooseBtn">Choose file</button>
+    </div>
+  </div>
+
+  <div id="statusArea"></div>
+
+  <div id="report" class="hidden">
+
+    <div class="actions-bar">
+      <button class="upload-btn secondary" id="printBtn">🖨 Print / Save PDF</button>
+      <button class="upload-btn secondary" id="resetBtn">⟲ Load new file</button>
+    </div>
+
+    <div class="stats-grid" id="heroStats"></div>
+
+    <div class="section-title">
+      <div class="section-kicker">Headlines from the data</div>
+      <h2 class="section-h">What jumped out</h2>
+    </div>
+    <div class="insights-grid" id="insightsGrid"></div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="grade">By Grade</button>
+      <button class="tab" data-tab="homeroom">Homerooms</button>
+      <button class="tab" data-tab="week">Time Trends</button>
+      <button class="tab" data-tab="dow">Day of Week</button>
+      <button class="tab" data-tab="students">Student Watchlist</button>
+    </div>
+
+    <div class="panel active" id="panel-overview">
+      <div class="section-title">
+        <h2 class="section-h">Monthly arc</h2>
+        <div class="section-dek">Absence rate by month, with the unexcused share split out. Partial first/last months may not be representative.</div>
+      </div>
+      <div class="chart-wrap" style="height: 320px;"><canvas id="monthlyChart" role="img" aria-label="Monthly absence and tardy rates"></canvas></div>
+
+      <div class="section-title">
+        <h2 class="section-h">What the absence is made of</h2>
+        <div class="section-dek">The full-year absence rate broken into components.</div>
+      </div>
+      <div class="stats-grid" id="compositionStats"></div>
+    </div>
+
+    <div class="panel" id="panel-grade">
+      <div class="print-divider"></div>
+      <div class="section-title">
+        <h2 class="section-h">Grade-level comparison</h2>
+        <div class="section-dek">Absence rates can look similar across grades while the composition differs.</div>
+      </div>
+      <div class="chart-row">
+        <div>
+          <div class="chart-label">Absence vs. Tardy by grade</div>
+          <div class="chart-wrap" style="height: 280px;"><canvas id="gradeAbsTardy" role="img" aria-label="Absence and tardy by grade"></canvas></div>
+        </div>
+        <div>
+          <div class="chart-label">Chronic absenteeism breakdown</div>
+          <div class="chart-wrap" style="height: 280px;"><canvas id="gradeChronic" role="img" aria-label="Chronic absenteeism by grade"></canvas></div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data" id="gradeTable">
+          <thead><tr><th>Grade</th><th>Students</th><th>Absence</th><th>Unexcused</th><th>Tardy</th><th>Chronic</th><th>Severe</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="note" id="gradeNote"></p>
+    </div>
+
+    <div class="panel" id="panel-homeroom">
+      <div class="print-divider"></div>
+      <div class="section-title">
+        <h2 class="section-h">Homeroom leaderboard</h2>
+        <div class="section-dek">Sorted by absence rate. Bars above the school average are flagged in crimson.</div>
+      </div>
+      <div class="filter-bar">
+        <span class="filter-label">Filter by grade:</span>
+        <div id="hrGradeFilter"></div>
+      </div>
+      <div class="chart-wrap" id="hrChartWrap"><canvas id="homeroomChart" role="img" aria-label="Absence rate by homeroom"></canvas></div>
+      <div class="table-wrap">
+        <table class="data" id="hrTable">
+          <thead><tr><th>Homeroom</th><th>N</th><th>Absence</th><th>Tardy</th><th>Chronic</th><th>Severe</th><th>Status</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-week">
+      <div class="print-divider"></div>
+      <div class="section-title">
+        <h2 class="section-h">Week-by-week</h2>
+        <div class="section-dek">Absence and tardy rates over the school year. Weeks above 10% are dragging the school average up.</div>
+      </div>
+      <div class="chart-wrap" style="height: 360px;"><canvas id="weeklyChart" role="img" aria-label="Weekly absence and tardy rates"></canvas></div>
+      <p class="note" id="weeklyNote"></p>
+    </div>
+
+    <div class="panel" id="panel-dow">
+      <div class="print-divider"></div>
+      <div class="section-title">
+        <h2 class="section-h">The Friday effect</h2>
+        <div class="section-dek" id="dowDek"></div>
+      </div>
+      <div class="chart-row">
+        <div>
+          <div class="chart-label">Absence by day · excused vs. unexcused</div>
+          <div class="chart-wrap" style="height: 300px;"><canvas id="dowAbsChart" role="img" aria-label="Absence by day of week"></canvas></div>
+        </div>
+        <div>
+          <div class="chart-label">Tardy rate by day × grade</div>
+          <div class="chart-wrap" style="height: 300px;"><canvas id="dowTardyChart" role="img" aria-label="Tardy by day and grade"></canvas></div>
+        </div>
+      </div>
+      <p class="note" id="dowNote"></p>
+    </div>
+
+    <div class="panel" id="panel-students">
+      <div class="print-divider"></div>
+      <div class="section-title">
+        <div class="section-kicker">Confidential · for school leadership</div>
+        <h2 class="section-h">Top-20 watchlists</h2>
+        <div class="section-dek">Filtered to students with at least 30 enrolled days to exclude transfer cases.</div>
+      </div>
+      <div class="col-2">
+        <div>
+          <div style="font-family: Georgia, serif; font-size: 18px; font-weight: 700; margin-bottom: 4px; border-bottom: 2px solid var(--accent); padding-bottom: 6px;">🚨 Highest absence rate</div>
+          <div class="faint" style="margin-bottom: 8px;">Sorted by total absences</div>
+          <div class="watchlist" id="topAbsList"></div>
+        </div>
+        <div>
+          <div style="font-family: Georgia, serif; font-size: 18px; font-weight: 700; margin-bottom: 4px; border-bottom: 2px solid var(--slate); padding-bottom: 6px;">⏰ Highest tardy rate</div>
+          <div class="faint" style="margin-bottom: 8px;">Sorted by total tardies</div>
+          <div class="watchlist" id="topTardyList"></div>
+        </div>
+      </div>
+      <p class="note" id="watchlistNote"></p>
+    </div>
+
+    <footer id="footer"></footer>
+  </div>
+</div>
+
+<script>
+  const C = {
+    paper: '#f5f1e8', paperDark: '#ebe5d4', ink: '#1a1611', inkSoft: '#4a4035',
+    inkFaint: '#8a7e6d', rule: '#d4c9b0', accent: '#a3271e', accentSoft: '#c9554a',
+    slate: '#3d5466', slateSoft: '#6d8499', warn: '#b8730f', good: '#3a5a3a'
+  };
+
+  const ABSENT_CODES = new Set(['A', 'E', 'ISS', 'OSS', 'CE']);
+  const TARDY_CODES = new Set(['T', 'ET']);
+  const PRESENT_CODES = new Set(['P', 'T', 'ET', 'PU']);
+  const DOW_ORDER = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+  const MONTH_LABELS = {'01':'Jan','02':'Feb','03':'Mar','04':'Apr','05':'May','06':'Jun','07':'Jul','08':'Aug','09':'Sep','10':'Oct','11':'Nov','12':'Dec'};
+  const GRADES = ['5th','6th','7th','8th'];
+  const CHART_INSTANCES = {};
+  let CURRENT_ANALYSIS = null;
+  let CURRENT_HR_FILTER = 'All';
+
+  const fileInput = document.getElementById('fileInput');
+  const uploadZone = document.getElementById('uploadZone');
+
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+  document.getElementById('chooseBtn').addEventListener('click', () => fileInput.click());
+  document.getElementById('printBtn').addEventListener('click', () => window.print());
+  document.getElementById('resetBtn').addEventListener('click', resetReport);
+
+  uploadZone.addEventListener('click', e => { if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') fileInput.click(); });
+  ['dragover', 'dragenter'].forEach(ev => uploadZone.addEventListener(ev, e => { e.preventDefault(); uploadZone.classList.add('drag-over'); }));
+  ['dragleave', 'drop'].forEach(ev => uploadZone.addEventListener(ev, e => { e.preventDefault(); uploadZone.classList.remove('drag-over'); }));
+  uploadZone.addEventListener('drop', e => {
+    const f = e.dataTransfer.files[0];
+    if (f && f.name.toLowerCase().endsWith('.csv')) handleFile(f);
+    else showStatus('Please upload a .csv file.', 'error');
+  });
+
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-' + t.dataset.tab).classList.add('active');
+    // Some charts need a resize nudge when revealed
+    setTimeout(() => { Object.values(CHART_INSTANCES).forEach(c => c && c.resize && c.resize()); }, 50);
+  }));
+
+  function showStatus(msg, type) {
+    document.getElementById('statusArea').innerHTML = `<div class="status ${type}">${msg}</div>`;
+  }
+
+  function handleFile(file) {
+    showStatus(`📊 Parsing ${file.name}…`, 'info');
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        try {
+          const data = results.data.filter(r => r.Date && r['Student ID']);
+          if (data.length === 0) {
+            showStatus('❌ No valid attendance rows found. Check that the CSV has Date, Student ID, and Absence Type Code columns.', 'error');
+            return;
+          }
+          const analysis = analyze(data);
+          CURRENT_ANALYSIS = analysis;
+          renderReport(analysis);
+          showStatus(`✅ Analyzed ${data.length.toLocaleString()} records · ${analysis.meta.unique_students} students · ${analysis.meta.school_days} school days`, 'info');
+          document.getElementById('report').classList.remove('hidden');
+          document.getElementById('uploadZone').classList.add('hidden');
+        } catch (err) {
+          console.error(err);
+          showStatus(`❌ Error analyzing data: ${err.message}`, 'error');
+        }
+      },
+      error: (err) => showStatus(`❌ Parse error: ${err.message}`, 'error')
+    });
+  }
+
+  function resetReport() {
+    document.getElementById('report').classList.add('hidden');
+    document.getElementById('uploadZone').classList.remove('hidden');
+    document.getElementById('statusArea').innerHTML = '';
+    fileInput.value = '';
+    Object.values(CHART_INSTANCES).forEach(c => c && c.destroy());
+    Object.keys(CHART_INSTANCES).forEach(k => delete CHART_INSTANCES[k]);
+    CURRENT_ANALYSIS = null;
+    CURRENT_HR_FILTER = 'All';
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  }
+
+  // === Analysis ===
+  function analyze(rows) {
+    const dates = rows.map(r => r.Date).filter(Boolean).sort();
+    const minDate = dates[0];
+    const maxDate = dates[dates.length - 1];
+
+    rows.forEach(r => {
+      const code = (r['Absence Type Code'] || '').trim();
+      r._absent = ABSENT_CODES.has(code) ? 1 : 0;
+      r._unex = code === 'A' ? 1 : 0;
+      r._exc = code === 'E' ? 1 : 0;
+      r._susp = (code === 'ISS' || code === 'OSS') ? 1 : 0;
+      r._tardy = TARDY_CODES.has(code) ? 1 : 0;
+      r._present = PRESENT_CODES.has(code) ? 1 : 0;
+      r._dow = dayOfWeek(r.Date);
+      r._month = r.Date ? r.Date.slice(0, 7) : '';
+      r._weekStart = weekStart(r.Date);
+    });
+
+    const total = rows.length;
+    const overall = {
+      present_pct: pct(sumProp(rows, '_present'), total),
+      absent_pct: pct(sumProp(rows, '_absent'), total),
+      unex_abs_pct: pct(sumProp(rows, '_unex'), total),
+      exc_abs_pct: pct(sumProp(rows, '_exc'), total),
+      susp_pct: pct(sumProp(rows, '_susp'), total),
+      tardy_pct: pct(sumProp(rows, '_tardy'), total),
+    };
+
+    const studentMap = {};
+    rows.forEach(r => {
+      const id = r['Student ID'];
+      if (!studentMap[id]) {
+        studentMap[id] = { id, student: r.Student, grade: r['Grade Level'], homeroom: r.Homeroom,
+                            enrolled: 0, absent: 0, unex: 0, exc: 0, tardy: 0, susp: 0 };
+      }
+      const s = studentMap[id];
+      s.enrolled += 1; s.absent += r._absent; s.unex += r._unex; s.exc += r._exc;
+      s.tardy += r._tardy; s.susp += r._susp;
+    });
+    const students = Object.values(studentMap);
+    students.forEach(s => {
+      s.abs_rate = s.enrolled > 0 ? s.absent / s.enrolled : 0;
+      s.tardy_rate = s.enrolled > 0 ? s.tardy / s.enrolled : 0;
+      s.chronic = s.abs_rate >= 0.10 ? 1 : 0;
+      s.severe = s.abs_rate >= 0.20 ? 1 : 0;
+    });
+    const active = students.filter(s => s.enrolled >= 30);
+
+    overall.chronic_count = active.reduce((a, s) => a + s.chronic, 0);
+    overall.chronic_pct = active.length > 0 ? round1(overall.chronic_count / active.length * 100) : 0;
+    overall.severe_chronic_count = active.reduce((a, s) => a + s.severe, 0);
+    overall.severe_chronic_pct = active.length > 0 ? round1(overall.severe_chronic_count / active.length * 100) : 0;
+
+    const meta = {
+      date_range: [minDate, maxDate],
+      total_student_days: total,
+      unique_students: students.length,
+      active_students: active.length,
+      school_days: new Set(rows.map(r => r.Date)).size
+    };
+
+    const by_grade = GRADES.map(g => {
+      const sub = rows.filter(r => r['Grade Level'] === g);
+      const subStudents = active.filter(s => s.grade === g);
+      return {
+        grade: g, students: subStudents.length,
+        abs_rate: pct(sumProp(sub, '_absent'), sub.length),
+        unex_abs: pct(sumProp(sub, '_unex'), sub.length),
+        tardy_rate: pct(sumProp(sub, '_tardy'), sub.length),
+        chronic: subStudents.reduce((a, s) => a + s.chronic, 0),
+        severe: subStudents.reduce((a, s) => a + s.severe, 0),
+        chronic_pct: subStudents.length > 0 ? round1(subStudents.reduce((a, s) => a + s.chronic, 0) / subStudents.length * 100) : 0,
+      };
+    }).filter(g => g.students > 0);
+
+    const hrMap = {};
+    active.forEach(s => {
+      if (!s.homeroom) return;
+      if (!hrMap[s.homeroom]) hrMap[s.homeroom] = { homeroom: s.homeroom, students: [], grade_set: new Set() };
+      hrMap[s.homeroom].students.push(s);
+      hrMap[s.homeroom].grade_set.add(s.grade);
+    });
+    const by_homeroom = Object.values(hrMap).map(h => {
+      const sub = rows.filter(r => r.Homeroom === h.homeroom);
+      const grade = [...h.grade_set][0] || '';
+      return {
+        homeroom: h.homeroom, grade, students: h.students.length,
+        abs_rate: pct(sumProp(sub, '_absent'), sub.length),
+        tardy_rate: pct(sumProp(sub, '_tardy'), sub.length),
+        chronic: h.students.reduce((a, s) => a + s.chronic, 0),
+        severe: h.students.reduce((a, s) => a + s.severe, 0),
+        chronic_pct: h.students.length > 0 ? round1(h.students.reduce((a, s) => a + s.chronic, 0) / h.students.length * 100) : 0,
+      };
+    }).sort((a, b) => b.abs_rate - a.abs_rate);
+
+    const by_dow = DOW_ORDER.map(d => {
+      const sub = rows.filter(r => r._dow === d);
+      return {
+        dow: d,
+        abs_rate: pct(sumProp(sub, '_absent'), sub.length),
+        tardy_rate: pct(sumProp(sub, '_tardy'), sub.length),
+        unex_abs: pct(sumProp(sub, '_unex'), sub.length),
+        exc_abs: pct(sumProp(sub, '_exc'), sub.length),
+      };
+    });
+
+    const monthKeys = [...new Set(rows.map(r => r._month))].filter(Boolean).sort();
+    const by_month = monthKeys.map(m => {
+      const sub = rows.filter(r => r._month === m);
+      return {
+        month: MONTH_LABELS[m.slice(5, 7)] || m, month_raw: m,
+        abs_rate: pct(sumProp(sub, '_absent'), sub.length),
+        tardy_rate: pct(sumProp(sub, '_tardy'), sub.length),
+        unex_abs: pct(sumProp(sub, '_unex'), sub.length),
+      };
+    });
+
+    const weekKeys = [...new Set(rows.map(r => r._weekStart))].filter(Boolean).sort();
+    const weekly = weekKeys.map(w => {
+      const sub = rows.filter(r => r._weekStart === w);
+      return {
+        week: w,
+        abs_rate: pct(sumProp(sub, '_absent'), sub.length),
+        tardy_rate: pct(sumProp(sub, '_tardy'), sub.length),
+      };
+    });
+
+    const tardy_by_grade_dow = {};
+    GRADES.forEach(g => {
+      tardy_by_grade_dow[g] = {};
+      DOW_ORDER.forEach(d => {
+        const sub = rows.filter(r => r['Grade Level'] === g && r._dow === d);
+        tardy_by_grade_dow[g][d] = pct(sumProp(sub, '_tardy'), sub.length);
+      });
+    });
+
+    const top_absent = active.slice().sort((a, b) => b.absent - a.absent).slice(0, 20);
+    const top_tardy = active.slice().sort((a, b) => b.tardy - a.tardy).slice(0, 20);
+
+    const fri = by_dow.find(d => d.dow === 'Friday');
+    const mtth = by_dow.filter(d => d.dow !== 'Friday');
+    const mtthAbs = avg(mtth.map(d => d.abs_rate));
+    const mtthUnex = avg(mtth.map(d => d.unex_abs));
+    const worstMonth = by_month.length > 0 ? by_month.slice().sort((a, b) => b.abs_rate - a.abs_rate)[0] : null;
+    const worstHr = by_homeroom[0];
+    const gradeTardy = by_grade.map(g => ({ grade: g.grade, t: g.tardy_rate })).sort((a, b) => b.t - a.t);
+    const tardyOutlier = gradeTardy[0];
+    const otherTardyAvg = gradeTardy.length > 1 ? avg(gradeTardy.slice(1).map(g => g.t)) : 0;
+    const worstWeek = weekly.length > 0 ? weekly.slice().sort((a, b) => b.abs_rate - a.abs_rate)[0] : null;
+
+    const insights = {
+      chronic_pct: overall.chronic_pct, chronic_count: overall.chronic_count,
+      severe_count: overall.severe_chronic_count, severe_pct: overall.severe_chronic_pct,
+      active_students: active.length,
+      friday_abs: fri ? fri.abs_rate : 0, mtth_abs: round1(mtthAbs),
+      friday_unex: fri ? fri.unex_abs : 0, mtth_unex: round1(mtthUnex),
+      friday_uplift_pct: fri && mtthUnex > 0 ? Math.round((fri.unex_abs - mtthUnex) / mtthUnex * 100) : 0,
+      worst_month: worstMonth, worst_hr: worstHr,
+      tardy_outlier: tardyOutlier, tardy_outlier_gap: round1(tardyOutlier ? tardyOutlier.t - otherTardyAvg : 0),
+      worst_week: worstWeek,
+    };
+
+    return { meta, overall, by_grade, by_homeroom, by_dow, by_month, weekly, tardy_by_grade_dow, top_absent, top_tardy, insights };
+  }
+
+  function sumProp(arr, prop) { let s = 0; for (let i = 0; i < arr.length; i++) s += arr[i][prop] || 0; return s; }
+  function pct(num, denom) { return denom > 0 ? Math.round(num / denom * 10000) / 100 : 0; }
+  function round1(x) { return Math.round(x * 100) / 100; }
+  function avg(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0; }
+  function dayOfWeek(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T12:00:00');
+    return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+  }
+  function weekStart(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T12:00:00');
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    return d.toISOString().slice(0, 10);
+  }
+
+  // === Rendering ===
+  function renderReport(A) {
+    document.getElementById('dek').textContent = `School year through ${A.meta.date_range[1]} · ${A.meta.school_days} school days · ${A.meta.active_students} active students`;
+
+    document.getElementById('heroStats').innerHTML = `
+      ${statCard('Present rate', A.overall.present_pct + '%', 'includes tardies-counted-present', 'good')}
+      ${statCard('Absence rate', A.overall.absent_pct + '%', A.overall.unex_abs_pct + '% unexcused', 'accent')}
+      ${statCard('Tardy rate', A.overall.tardy_pct + '%', '≈ 1 in 5 student-days', 'slate')}
+      ${statCard('Chronic absentees', A.overall.chronic_count, A.overall.chronic_pct + '% · ≥10% absent (NYSED)', 'accent')}
+      ${statCard('Severe (≥20%)', A.overall.severe_chronic_count, A.overall.severe_chronic_pct + '% of students', 'accent')}
+    `;
+
+    const unexShare = A.overall.absent_pct > 0 ? Math.round(A.overall.unex_abs_pct / A.overall.absent_pct * 100) : 0;
+    document.getElementById('compositionStats').innerHTML = `
+      ${statCard('Unexcused (A)', A.overall.unex_abs_pct + '%', unexShare + '% of all absences', 'accent')}
+      ${statCard('Excused (E)', A.overall.exc_abs_pct + '%', 'parent-documented', '')}
+      ${statCard('Suspensions', A.overall.susp_pct + '%', 'ISS + OSS combined', 'slate')}
+      ${statCard('Tardies (any)', A.overall.tardy_pct + '%', '', 'slate')}
+    `;
+
+    renderInsights(A);
+    renderMonthlyChart(A);
+    renderGradeTab(A);
+    renderHomeroomTab(A);
+    renderWeeklyChart(A);
+    renderDowTab(A);
+    renderStudentsTab(A);
+
+    document.getElementById('footer').innerHTML = `
+      <strong>Provenance:</strong> Computed from your Daily Attendance Export CSV covering ${A.meta.school_days} school days
+      (${A.meta.date_range[0]} → ${A.meta.date_range[1]}), ${A.meta.total_student_days.toLocaleString()} student-day records,
+      ${A.meta.unique_students} unique students. "Active" set = students with ≥30 enrolled days (${A.meta.active_students} of ${A.meta.unique_students}),
+      used for all per-student rates. Chronic absenteeism follows NYSED definition (≥10% of enrolled days absent).
+      Absence includes codes A, E, ISS, OSS, CE; tardy includes T, ET; presence includes P, T, ET, PU per NYC SED convention
+      (tardy is present-for-the-day). Processed entirely in-browser — no data transmitted.
+    `;
+  }
+
+  function statCard(label, value, sub, tone) {
+    return `<div class="stat ${tone}"><div class="stat-label">${label}</div><div class="stat-value">${value}</div>${sub ? `<div class="stat-sub">${sub}</div>` : ''}</div>`;
+  }
+
+  function renderInsights(A) {
+    const I = A.insights;
+    const cards = [
+      {
+        emoji: '🚨', sev: 'high',
+        head: `Chronic absenteeism sits at ${I.chronic_pct}%`,
+        body: `${I.chronic_count} of ${I.active_students} active students are absent ≥10% of enrolled days. NYSED's B9 framework uses this metric — and ${I.severe_count} students (${I.severe_pct}%) are severely chronic at ≥20%.`
+      },
+      {
+        emoji: '📅', sev: 'high',
+        head: I.friday_abs > I.mtth_abs ? 'Friday is the skip day' : 'Friday holds steady',
+        body: I.friday_abs > I.mtth_abs
+          ? `${I.friday_abs}% absent on Fridays vs. ${I.mtth_abs}% Mon–Thu. The unexcused component jumps from ${I.mtth_unex}% to ${I.friday_unex}% — a ${I.friday_uplift_pct}% relative increase. This is behavioral, not illness.`
+          : `Friday absence is in line with the rest of the week (${I.friday_abs}% vs. ${I.mtth_abs}% Mon–Thu). No skip-day pattern this period.`
+      },
+      {
+        emoji: '⏰', sev: 'med',
+        head: I.tardy_outlier ? `${I.tardy_outlier.grade} grade has the highest tardy rate` : 'Tardy rates',
+        body: I.tardy_outlier
+          ? `${I.tardy_outlier.t}% tardy rate, ${I.tardy_outlier_gap.toFixed(1)} points above the other grades' average. Worth checking whether this is one homeroom, one day, or systemic.`
+          : 'Insufficient data.'
+      },
+      {
+        emoji: '🎄', sev: 'med',
+        head: I.worst_month ? `${I.worst_month.month} was the worst month` : 'Monthly arc',
+        body: I.worst_month
+          ? `${I.worst_month.abs_rate}% absent that month — well above the school's ${A.overall.absent_pct}% average. Worth a pre-emptive plan for the same window next year.`
+          : 'Insufficient data.'
+      },
+      {
+        emoji: '🏫', sev: 'high',
+        head: I.worst_hr ? `${I.worst_hr.homeroom.replace(' Homeroom','')} is the outlier homeroom` : 'Homerooms',
+        body: I.worst_hr
+          ? `${I.worst_hr.abs_rate}% absence and ${I.worst_hr.tardy_rate}% tardy, with ${I.worst_hr.chronic_pct}% chronic. The highest in the building — worth a direct conversation with the homeroom teacher and families.`
+          : 'Insufficient data.'
+      },
+    ];
+    document.getElementById('insightsGrid').innerHTML = cards.map(c =>
+      `<div class="insight ${c.sev}"><div class="insight-emoji">${c.emoji}</div><div class="insight-head">${c.head}</div><div class="insight-body">${c.body}</div></div>`
+    ).join('');
+  }
+
+  function destroyChart(id) { if (CHART_INSTANCES[id]) { CHART_INSTANCES[id].destroy(); delete CHART_INSTANCES[id]; } }
+
+  function chartOpts(extra = {}) {
+    const base = {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'top', labels: { boxWidth: 12, boxHeight: 12, font: { size: 11, family: 'ui-sans-serif, system-ui' }, color: C.ink } },
+        tooltip: { backgroundColor: C.ink, titleColor: C.paper, bodyColor: C.paper, borderColor: C.ink, padding: 10, cornerRadius: 0, displayColors: true, boxWidth: 10 }
+      },
+      scales: {
+        x: { grid: { display: false }, border: { color: C.ink }, ticks: { color: C.inkSoft, font: { size: 11 } }, stacked: !!extra.stacked },
+        y: { grid: { color: C.rule, drawBorder: false }, border: { display: false }, ticks: { color: C.inkSoft, font: { size: 11 }, callback: v => v + (extra.ySuffix || '') }, stacked: !!extra.stacked }
+      }
+    };
+    return base;
+  }
+
+  function renderMonthlyChart(A) {
+    destroyChart('monthlyChart');
+    CHART_INSTANCES.monthlyChart = new Chart(document.getElementById('monthlyChart'), {
+      type: 'bar',
+      data: {
+        labels: A.by_month.map(m => m.month),
+        datasets: [
+          { type: 'bar', label: 'Unexcused absence %', data: A.by_month.map(m => m.unex_abs), backgroundColor: C.accent, stack: 'a' },
+          { type: 'bar', label: 'Excused absence %', data: A.by_month.map(m => round1(m.abs_rate - m.unex_abs)), backgroundColor: C.warn, stack: 'a' },
+          { type: 'line', label: 'Total absence %', data: A.by_month.map(m => m.abs_rate), borderColor: C.ink, backgroundColor: C.ink, borderWidth: 2, pointRadius: 4, fill: false, tension: 0.2 },
+          { type: 'line', label: 'Tardy %', data: A.by_month.map(m => m.tardy_rate), borderColor: C.slate, backgroundColor: C.slate, borderWidth: 1.5, borderDash: [4, 3], pointRadius: 3, fill: false, tension: 0.2 },
+        ]
+      },
+      options: chartOpts({ stacked: false, ySuffix: '%' })
+    });
+  }
+
+  function renderGradeTab(A) {
+    destroyChart('gradeAbsTardy');
+    destroyChart('gradeChronic');
+    CHART_INSTANCES.gradeAbsTardy = new Chart(document.getElementById('gradeAbsTardy'), {
+      type: 'bar',
+      data: {
+        labels: A.by_grade.map(g => g.grade),
+        datasets: [
+          { label: 'Absence %', data: A.by_grade.map(g => g.abs_rate), backgroundColor: C.accent },
+          { label: 'Tardy %', data: A.by_grade.map(g => g.tardy_rate), backgroundColor: C.slate },
+        ]
+      },
+      options: chartOpts({ ySuffix: '%' })
+    });
+
+    CHART_INSTANCES.gradeChronic = new Chart(document.getElementById('gradeChronic'), {
+      type: 'bar',
+      data: {
+        labels: A.by_grade.map(g => g.grade),
+        datasets: [
+          { label: 'On-track (<10%)', data: A.by_grade.map(g => g.students - g.chronic), backgroundColor: C.good },
+          { label: 'Moderate (10–20%)', data: A.by_grade.map(g => g.chronic - g.severe), backgroundColor: C.warn },
+          { label: 'Severe (≥20%)', data: A.by_grade.map(g => g.severe), backgroundColor: C.accent },
+        ]
+      },
+      options: chartOpts({ stacked: true })
+    });
+
+    document.querySelector('#gradeTable tbody').innerHTML = A.by_grade.map(g => `
+      <tr>
+        <td class="serif" style="font-size: 16px;">${g.grade}</td>
+        <td>${g.students}</td>
+        <td class="tabular ${g.abs_rate > 12.5 ? 'accent' : ''}">${g.abs_rate}%</td>
+        <td class="tabular">${g.unex_abs}%</td>
+        <td class="tabular ${g.tardy_rate > 22 ? 'accent' : 'slate'}">${g.tardy_rate}%</td>
+        <td>${g.chronic} <span class="faint">(${g.chronic_pct}%)</span></td>
+        <td class="accent">${g.severe}</td>
+      </tr>
+    `).join('');
+
+    const grades = A.by_grade.slice();
+    grades.forEach(g => g.unex_share = g.abs_rate > 0 ? g.unex_abs / g.abs_rate : 0);
+    const lowest = grades.slice().sort((a, b) => a.unex_share - b.unex_share)[0];
+    const highest = grades.slice().sort((a, b) => b.unex_share - a.unex_share)[0];
+    if (lowest && highest) {
+      document.getElementById('gradeNote').innerHTML = `
+        🎯 <strong>Notable:</strong> ${lowest.grade} grade has the lowest unexcused share of total absences
+        (${Math.round(lowest.unex_share * 100)}%), while ${highest.grade} is highest (${Math.round(highest.unex_share * 100)}%).
+        A high unexcused share usually means families aren't documenting absences — a different intervention than the absence rate itself.
+      `;
+    }
+  }
+
+  function renderHomeroomTab(A) {
+    const grades = ['All', ...new Set(A.by_homeroom.map(h => h.grade))].filter(Boolean);
+    document.getElementById('hrGradeFilter').innerHTML = grades.map(g =>
+      `<button class="filter-btn ${g === CURRENT_HR_FILTER ? 'active' : ''}" data-grade="${g}">${g}</button>`
+    ).join('');
+    document.querySelectorAll('#hrGradeFilter .filter-btn').forEach(b => {
+      b.addEventListener('click', () => { CURRENT_HR_FILTER = b.dataset.grade; renderHomeroomTab(A); });
+    });
+
+    const filtered = CURRENT_HR_FILTER === 'All' ? A.by_homeroom : A.by_homeroom.filter(h => h.grade === CURRENT_HR_FILTER);
+    const wrap = document.getElementById('hrChartWrap');
+    wrap.style.height = Math.max(280, filtered.length * 32) + 'px';
+
+    destroyChart('homeroomChart');
+    CHART_INSTANCES.homeroomChart = new Chart(document.getElementById('homeroomChart'), {
+      type: 'bar',
+      data: {
+        labels: filtered.map(h => h.homeroom.replace(' Homeroom', '')),
+        datasets: [{
+          label: 'Absence %',
+          data: filtered.map(h => h.abs_rate),
+          backgroundColor: filtered.map(h => h.abs_rate > A.overall.absent_pct ? C.accent : C.slateSoft),
+        }]
+      },
+      options: {
+        ...chartOpts({ ySuffix: '%' }),
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: false },
+          tooltip: { backgroundColor: C.ink, titleColor: C.paper, bodyColor: C.paper, padding: 10, cornerRadius: 0 },
+          annotation: undefined
+        },
+        scales: {
+          x: { grid: { color: C.rule }, border: { display: false }, ticks: { color: C.inkSoft, font: { size: 11 }, callback: v => v + '%' } },
+          y: { grid: { display: false }, border: { color: C.ink }, ticks: { color: C.ink, font: { size: 11 } } }
+        }
+      }
+    });
+
+    document.querySelector('#hrTable tbody').innerHTML = filtered.map(h => {
+      const status = h.abs_rate > 14 ? ['🔴', 'critical', C.accent]
+                   : h.abs_rate > 11.5 ? ['🟠', 'watch', C.warn]
+                   : h.abs_rate > 9 ? ['🟡', 'monitor', C.warn]
+                   : ['🟢', 'on-track', C.good];
+      return `
+        <tr>
+          <td class="serif">${h.homeroom.replace(' Homeroom', '')}</td>
+          <td class="faint">${h.students}</td>
+          <td class="tabular ${h.abs_rate > 12 ? 'accent' : ''}" style="font-weight:600;">${h.abs_rate}%</td>
+          <td class="tabular ${h.tardy_rate > 22 ? 'accent' : 'slate'}">${h.tardy_rate}%</td>
+          <td>${h.chronic} <span class="faint">(${h.chronic_pct}%)</span></td>
+          <td class="accent">${h.severe}</td>
+          <td style="color:${status[2]}; font-weight:600;">${status[0]} ${status[1]}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function renderWeeklyChart(A) {
+    destroyChart('weeklyChart');
+    CHART_INSTANCES.weeklyChart = new Chart(document.getElementById('weeklyChart'), {
+      type: 'line',
+      data: {
+        labels: A.weekly.map(w => w.week.slice(5)),
+        datasets: [
+          { label: 'Absence %', data: A.weekly.map(w => w.abs_rate), borderColor: C.accent, backgroundColor: C.accent, borderWidth: 2.5, pointRadius: 3, fill: false, tension: 0.2 },
+          { label: 'Tardy %', data: A.weekly.map(w => w.tardy_rate), borderColor: C.slate, backgroundColor: C.slate, borderWidth: 1.5, borderDash: [4, 3], pointRadius: 2, fill: false, tension: 0.2 },
+        ]
+      },
+      options: {
+        ...chartOpts({ ySuffix: '%' }),
+        scales: {
+          x: { grid: { display: false }, border: { color: C.ink }, ticks: { color: C.inkSoft, font: { size: 10 }, maxRotation: 45, minRotation: 45 } },
+          y: { grid: { color: C.rule }, border: { display: false }, ticks: { color: C.inkSoft, font: { size: 11 }, callback: v => v + '%' } }
+        }
+      }
+    });
+
+    const I = A.insights;
+    if (I.worst_week) {
+      document.getElementById('weeklyNote').innerHTML = `
+        📈 <strong>Pattern note:</strong> The worst single week was the week of ${I.worst_week.week} at ${I.worst_week.abs_rate}% absent.
+        Tardy rate tends to be more stable than absence rate — large swings in tardy week-to-week usually indicate weather, transit, or schedule disruption.
+      `;
+    }
+  }
+
+  function renderDowTab(A) {
+    document.getElementById('dowDek').textContent = A.insights.friday_abs > A.insights.mtth_abs
+      ? `Fridays show ${A.insights.friday_abs}% absence vs. ${A.insights.mtth_abs}% Mon–Thu. The unexcused share jumps from ${A.insights.mtth_unex}% to ${A.insights.friday_unex}% — the gap is behavioral, not flu.`
+      : `Absence is reasonably even across days (Fri ${A.insights.friday_abs}% vs. Mon-Thu ${A.insights.mtth_abs}%).`;
+
+    destroyChart('dowAbsChart');
+    CHART_INSTANCES.dowAbsChart = new Chart(document.getElementById('dowAbsChart'), {
+      type: 'bar',
+      data: {
+        labels: A.by_dow.map(d => d.dow),
+        datasets: [
+          { label: 'Unexcused', data: A.by_dow.map(d => d.unex_abs), backgroundColor: C.accent, stack: 'a' },
+          { label: 'Excused', data: A.by_dow.map(d => round1(d.abs_rate - d.unex_abs)), backgroundColor: C.warn, stack: 'a' },
+        ]
+      },
+      options: chartOpts({ stacked: true, ySuffix: '%' })
+    });
+
+    destroyChart('dowTardyChart');
+    CHART_INSTANCES.dowTardyChart = new Chart(document.getElementById('dowTardyChart'), {
+      type: 'bar',
+      data: {
+        labels: DOW_ORDER,
+        datasets: GRADES.map((g, i) => ({
+          label: g,
+          data: DOW_ORDER.map(d => A.tardy_by_grade_dow[g][d]),
+          backgroundColor: [C.inkFaint, C.accent, C.slateSoft, C.slate][i]
+        }))
+      },
+      options: chartOpts({ ySuffix: '%' })
+    });
+
+    const sixthDow = A.tardy_by_grade_dow['6th'];
+    if (sixthDow) {
+      const sixthValues = DOW_ORDER.map(d => sixthDow[d]);
+      const sixthMin = Math.min(...sixthValues);
+      const sixthMax = Math.max(...sixthValues);
+      document.getElementById('dowNote').innerHTML = `
+        ⏰ <strong>Tardy patterns by grade × day:</strong> 6th grade tardy rate ranges from ${sixthMin}% to ${sixthMax}% across the week.
+        Cross-day consistency suggests a structural issue (arrival flow, bus routes) rather than a Monday-morning problem.
+      `;
+    }
+  }
+
+  function renderStudentsTab(A) {
+    document.getElementById('topAbsList').innerHTML = A.top_absent.map((s, i) => `
+      <div class="watch-row">
+        <div class="watch-num">${String(i + 1).padStart(2, '0')}</div>
+        <div>
+          <div class="watch-name">${escapeHtml(s.student)}</div>
+          <div class="watch-sub">${s.grade} · ${(s.homeroom || '').replace(' Homeroom','')} · ${s.enrolled} enrolled</div>
+        </div>
+        <div class="watch-stat">
+          <div class="big accent">${round1(s.abs_rate * 100)}%</div>
+          <div class="small">${s.absent} abs · ${s.unex} unex</div>
+        </div>
+      </div>
+    `).join('');
+
+    document.getElementById('topTardyList').innerHTML = A.top_tardy.map((s, i) => `
+      <div class="watch-row">
+        <div class="watch-num">${String(i + 1).padStart(2, '0')}</div>
+        <div>
+          <div class="watch-name">${escapeHtml(s.student)}</div>
+          <div class="watch-sub">${s.grade} · ${(s.homeroom || '').replace(' Homeroom','')} · ${s.enrolled} enrolled</div>
+        </div>
+        <div class="watch-stat">
+          <div class="big slate">${round1(s.tardy_rate * 100)}%</div>
+          <div class="small">${s.tardy} tardy · ${s.absent} abs</div>
+        </div>
+      </div>
+    `).join('');
+
+    // Find homeroom clustering in tardy list
+    const hrCounts = {};
+    A.top_tardy.forEach(s => { hrCounts[s.homeroom] = (hrCounts[s.homeroom] || 0) + 1; });
+    const clustered = Object.entries(hrCounts).filter(([_, n]) => n >= 3).sort((a,b) => b[1] - a[1]);
+    if (clustered.length > 0) {
+      const [hr, n] = clustered[0];
+      document.getElementById('watchlistNote').innerHTML = `
+        🎯 <strong>Clustering note:</strong> ${hr.replace(' Homeroom','')} appears ${n}× in the tardy top-20 — worth investigating as a homeroom-level pattern.
+      `;
+    } else {
+      document.getElementById('watchlistNote').innerHTML = `
+        🎯 <strong>Distribution note:</strong> Top tardiness is spread across homerooms — likely individual rather than homeroom-level patterns.
+      `;
+    }
+  }
+
+  function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+</script>
+</body>
+</html>
